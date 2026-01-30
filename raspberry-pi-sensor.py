@@ -1,35 +1,106 @@
 #!/usr/bin/env python3
 """
-Raspberry Pi Temperature Sensor Script
-Reads CPU temperature and sends it to the web dashboard
+Raspberry Pi MAX6675 Thermocouple Temperature Sensor Script
+Reads temperatures from Type K thermocouples and sends to web dashboard
 """
 
 import time
 import requests
 import json
 from datetime import datetime
+import RPi.GPIO as GPIO
 
 # Configuration
 SERVER_URL = "http://YOUR_SERVER_IP:3000/api/temperature"  # Replace with your server IP
-SENSOR_NAME = "raspberry-pi-3a+"
 INTERVAL_SECONDS = 5  # Send temperature every 5 seconds
 
-def get_cpu_temperature():
-    """Read CPU temperature from Raspberry Pi"""
-    try:
-        with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
-            temp = float(f.read()) / 1000.0  # Convert from millidegrees to degrees
-            return round(temp, 2)
-    except Exception as e:
-        print(f"Error reading temperature: {e}")
-        return None
+# MAX6675 Pin Configuration
+CS_PINS = {"T1": 8, "T2": 7, "T3": 25}  # Chip Select pins for each sensor
+CLK_PIN = 11  # Clock pin (shared)
+DO_PIN = 9    # Data Out pin (shared)
 
-def send_temperature(temperature):
+class MAX6675:
+    """Driver for MAX6675 thermocouple amplifier"""
+    
+    def __init__(self, cs_pin, clk_pin, do_pin):
+        self.cs_pin = cs_pin
+        self.clk_pin = clk_pin
+        self.do_pin = do_pin
+        
+        # Setup GPIO
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setup(self.cs_pin, GPIO.OUT)
+        GPIO.setup(self.clk_pin, GPIO.OUT)
+        GPIO.setup(self.do_pin, GPIO.IN)
+        
+        # Set initial states
+        GPIO.output(self.cs_pin, GPIO.HIGH)
+        GPIO.output(self.clk_pin, GPIO.LOW)
+    
+    def read_temperature(self):
+        """Read temperature from MAX6675"""
+        try:
+            # Start communication
+            GPIO.output(self.cs_pin, GPIO.LOW)
+            time.sleep(0.002)  # 2ms delay
+            
+            # Read 16 bits
+            value = 0
+            for i in range(16):
+                GPIO.output(self.clk_pin, GPIO.HIGH)
+                time.sleep(0.001)  # 1ms delay
+                value <<= 1
+                if GPIO.input(self.do_pin):
+                    value |= 1
+                GPIO.output(self.clk_pin, GPIO.LOW)
+                time.sleep(0.001)  # 1ms delay
+            
+            # End communication
+            GPIO.output(self.cs_pin, GPIO.HIGH)
+            
+            # Check for thermocouple connection (bit 2)
+            if value & 0x4:
+                print("Warning: Thermocouple not connected!")
+                return None
+            
+            # Extract temperature (bits 3-14)
+            temp_raw = (value >> 3) & 0xFFF
+            
+            # Convert to Celsius (0.25°C per bit)
+            temperature = temp_raw * 0.25
+            
+            return round(temperature, 2)
+            
+        except Exception as e:
+            print(f"Error reading MAX6675: {e}")
+            return None
+
+def initialize_sensors():
+    """Initialize all MAX6675 sensors"""
+    sensors = {}
+    for name, cs_pin in CS_PINS.items():
+        sensors[name] = MAX6675(cs_pin, CLK_PIN, DO_PIN)
+        print(f"✓ Initialized sensor {name} on CS pin {cs_pin}")
+    return sensors
+
+def read_all_temperatures(sensors):
+    """Read temperatures from all sensors"""
+    readings = {}
+    for name, sensor in sensors.items():
+        temp = sensor.read_temperature()
+        if temp is not None:
+            readings[name] = temp
+            print(f"  {name}: {temp}°C")
+        else:
+            print(f"  {name}: Failed to read")
+    return readings
+
+def send_temperature(sensor_name, temperature):
     """Send temperature data to the server"""
     try:
         data = {
             "temperature": temperature,
-            "sensor": SENSOR_NAME
+            "sensor": sensor_name
         }
         
         response = requests.post(
@@ -40,7 +111,6 @@ def send_temperature(temperature):
         )
         
         if response.status_code == 200:
-            print(f"✓ Sent: {temperature}°C at {datetime.now().strftime('%H:%M:%S')}")
             return True
         else:
             print(f"✗ Error: Server returned status {response.status_code}")
@@ -50,35 +120,54 @@ def send_temperature(temperature):
         print(f"✗ Connection error: {e}")
         return False
 
+def cleanup():
+    """Clean up GPIO"""
+    GPIO.cleanup()
+
 def main():
     """Main loop"""
-    print("=" * 50)
-    print("Raspberry Pi Temperature Monitor")
-    print("=" * 50)
+    print("=" * 60)
+    print("MAX6675 Thermocouple Temperature Monitor")
+    print("=" * 60)
     print(f"Server: {SERVER_URL}")
-    print(f"Sensor: {SENSOR_NAME}")
+    print(f"Sensors: {', '.join(CS_PINS.keys())}")
     print(f"Interval: {INTERVAL_SECONDS} seconds")
-    print("=" * 50)
-    print("\nStarting temperature monitoring...")
-    print("Press Ctrl+C to stop\n")
+    print("=" * 60)
+    print("\nInitializing sensors...")
     
     try:
+        # Initialize sensors
+        sensors = initialize_sensors()
+        
+        print("\nStarting temperature monitoring...")
+        print("Press Ctrl+C to stop\n")
+        
         while True:
-            # Read temperature
-            temp = get_cpu_temperature()
+            timestamp = datetime.now().strftime('%H:%M:%S')
+            print(f"\n[{timestamp}] Reading temperatures:")
             
-            if temp is not None:
-                # Send to server
-                send_temperature(temp)
+            # Read all sensors
+            readings = read_all_temperatures(sensors)
+            
+            # Send each reading to server
+            if readings:
+                for sensor_name, temp in readings.items():
+                    success = send_temperature(sensor_name, temp)
+                    if success:
+                        print(f"  ✓ Sent {sensor_name}: {temp}°C")
             else:
-                print("✗ Failed to read temperature")
+                print("  ✗ No valid readings")
             
             # Wait before next reading
             time.sleep(INTERVAL_SECONDS)
             
     except KeyboardInterrupt:
         print("\n\nStopping temperature monitor...")
-        print("Goodbye!")
+    except Exception as e:
+        print(f"\n\nError: {e}")
+    finally:
+        cleanup()
+        print("GPIO cleaned up. Goodbye!")
 
 if __name__ == "__main__":
     main()

@@ -35,6 +35,16 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Group readings by sensor
+  const sensorReadings = readings.reduce((acc, reading) => {
+    const sensor = reading.sensor || "default";
+    if (!acc[sensor]) {
+      acc[sensor] = [];
+    }
+    acc[sensor].push(reading);
+    return acc;
+  }, {} as Record<string, TemperatureReading[]>);
+
   const latestReading = readings[0];
   const averageTemp =
     readings.length > 0
@@ -46,43 +56,49 @@ export default function Home() {
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">
-            🌡️ Raspberry Pi Temperature Monitor
+            🌡️ MAX6675 Thermocouple Monitor
           </h1>
-          <p className="text-gray-600">Real-time temperature readings</p>
+          <p className="text-gray-600">Real-time Type K thermocouple readings</p>
         </header>
 
         {loading ? (
           <div className="text-center text-gray-600">Loading...</div>
         ) : (
           <>
-            {/* Current Temperature Card */}
-            <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
-              <h2 className="text-xl font-semibold text-gray-700 mb-4">
-                Current Temperature
-              </h2>
-              {latestReading ? (
-                <div className="text-center">
-                  <div className="text-6xl font-bold text-indigo-600 mb-2">
-                    {latestReading.temperature.toFixed(1)}°C
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    Last updated:{" "}
-                    {new Date(latestReading.timestamp).toLocaleString()}
-                  </div>
-                  {latestReading.sensor && (
-                    <div className="text-sm text-gray-500 mt-1">
-                      Sensor: {latestReading.sensor}
+            {/* Current Sensors Grid */}
+            {Object.keys(sensorReadings).length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                {Object.entries(sensorReadings).map(([sensor, sensorData]) => {
+                  const latest = sensorData[0];
+                  return (
+                    <div
+                      key={sensor}
+                      className="bg-white rounded-2xl shadow-xl p-6"
+                    >
+                      <h3 className="text-lg font-semibold text-gray-700 mb-3">
+                        {sensor}
+                      </h3>
+                      <div className="text-center">
+                        <div className="text-5xl font-bold text-indigo-600 mb-2">
+                          {latest.temperature.toFixed(1)}°C
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(latest.timestamp).toLocaleTimeString()}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-              ) : (
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
                 <div className="text-center text-gray-500 py-8">
                   No temperature data available yet.
                   <br />
                   Waiting for Raspberry Pi to send data...
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             {/* Statistics */}
             {readings.length > 0 && (
