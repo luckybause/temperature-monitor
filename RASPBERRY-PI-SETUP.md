@@ -109,15 +109,22 @@ Change this line:
 SERVER_URL = "http://YOUR_SERVER_IP:3000/api/temperature"
 ```
 
-**If using OpenVPN (deployed app):**
+**If using your domain (recommended for OpenVPN):**
 ```python
-SERVER_URL = "https://your-app.vercel.app/api/temperature"  # Use your deployed URL
+SERVER_URL = "https://kacpercvch.pl/api/temperature"  # Your custom domain
+```
+
+**If using deployed app URL:**
+```python
+SERVER_URL = "https://your-app.vercel.app/api/temperature"  # Vercel/Railway URL
 ```
 
 **If on same local network:**
 ```python
-SERVER_URL = "http://192.168.1.100:3000/api/temperature"  # Use your local IP
+SERVER_URL = "http://192.168.1.100:3000/api/temperature"  # Local IP for testing
 ```
+
+**Note:** See [`DEPLOYMENT.md`](DEPLOYMENT.md) for instructions on deploying to your domain.
 
 **Optional:** If you want to change the pin configuration, modify these lines:
 ```python
