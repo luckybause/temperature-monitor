@@ -11,7 +11,7 @@ from datetime import datetime
 import RPi.GPIO as GPIO
 
 # Configuration
-SERVER_URL = "http://YOUR_SERVER_IP:3000/api/temperature"  # Replace with your server IP
+SERVER_URL = "https://temperature-monitor-h7tmvbjpp-luckybauses-projects.vercel.app/api/temperature"  # Replace with your server IP
 INTERVAL_SECONDS = 5  # Send temperature every 5 seconds
 
 # MAX6675 Pin Configuration
