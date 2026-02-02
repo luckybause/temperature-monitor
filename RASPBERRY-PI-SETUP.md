@@ -2,34 +2,44 @@
 
 This guide will help you set up your Raspberry Pi to read Type K thermocouples using MAX6675 sensors and send temperature data to your web dashboard.
 
-## 🖥️ Server Setup (This Computer)
+## 🖥️ Server Setup
 
 ### 1. Install Dependencies
 ```bash
 bun install
 ```
 
-### 2. Start the Server
+### 2. Deploy Your Server
+
+You have two options:
+
+**Option A: Deploy to Production (Recommended for OpenVPN)**
+
+Deploy your app to a hosting service (Vercel, Railway, etc.) and use the public URL:
+```
+https://your-app.vercel.app
+```
+
+**Option B: Local Development**
+
+Start the server locally:
 ```bash
 bun dev
 ```
 
 The dashboard will be available at `http://localhost:3000`
 
-### 3. Find Your Server IP Address
-You need your computer's IP address so the Raspberry Pi can send data to it.
+### 3. Get Your Server URL
 
-**On Linux/Mac:**
-```bash
-hostname -I
-```
+**If using OpenVPN (Raspberry Pi connects via VPN):**
+- Use your deployed app's public URL: `https://your-app.vercel.app`
+- OR use your server's public IP/domain if accessible over the internet
 
-**On Windows:**
-```bash
-ipconfig
-```
-
-Look for your local IP address (usually starts with `192.168.` or `10.`)
+**If on same local network:**
+- Find your local IP address:
+  - **Linux/Mac:** `hostname -I`
+  - **Windows:** `ipconfig`
+- Use format: `http://192.168.1.100:3000` (replace with your IP)
 
 ---
 
@@ -99,9 +109,14 @@ Change this line:
 SERVER_URL = "http://YOUR_SERVER_IP:3000/api/temperature"
 ```
 
-To your actual server IP (from step 3 above):
+**If using OpenVPN (deployed app):**
 ```python
-SERVER_URL = "http://192.168.1.100:3000/api/temperature"  # Use your actual IP
+SERVER_URL = "https://your-app.vercel.app/api/temperature"  # Use your deployed URL
+```
+
+**If on same local network:**
+```python
+SERVER_URL = "http://192.168.1.100:3000/api/temperature"  # Use your local IP
 ```
 
 **Optional:** If you want to change the pin configuration, modify these lines:
